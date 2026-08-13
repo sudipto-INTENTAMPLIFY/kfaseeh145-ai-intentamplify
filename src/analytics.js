@@ -1,51 +1,15 @@
 const UTM=['utm_source','utm_medium','utm_campaign','utm_term','utm_content'];
-const LIFECYCLE=['Anonymous','Engaged','Known Identity','Intent Signal','Lead','Qualified Lead','MQL','SQL','Opportunity'];
-const read=(k,f={})=>{try{return JSON.parse(localStorage.getItem(k)||JSON.stringify(f))}catch{return f}};
-const write=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch{}}
-const id=()=>globalThis.crypto?.randomUUID?.()||`evt_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-
-export const consent=()=>{try{return localStorage.getItem('ia_consent')||'unset'}catch{return'unset'}};
-export const attribution=()=>read('ia_attribution',{});
-
-export function persistAttribution(){
-  const params=new URLSearchParams(globalThis.location?.search||'');
-  const current=attribution();
-  let changed=false;
-  for(const key of UTM){const value=params.get(key);if(value){current[key]=value;changed=true}}
-  if(changed){current.captured_at=new Date().toISOString();current.landing_path=globalThis.location?.pathname||'/';write('ia_attribution',current)}
-  return current;
-}
-
-function ensureAnalytics(){
-  if(consent()!=='granted'||typeof document==='undefined')return;
-  globalThis.dataLayer=globalThis.dataLayer||[];
-  const gtm=import.meta.env.VITE_GTM_ID;
-  const ga4=import.meta.env.VITE_GA4_ID;
-  if(gtm&&!document.querySelector(`script[data-ia-gtm="${gtm}"]`)){
-    const s=document.createElement('script');s.async=true;s.dataset.iaGtm=gtm;s.src=`https://www.googletagmanager.com/gtm.js?id=${encodeURIComponent(gtm)}`;document.head.appendChild(s);
-  }
-  if(ga4&&!document.querySelector(`script[data-ia-ga4="${ga4}"]`)){
-    const s=document.createElement('script');s.async=true;s.dataset.iaGa4=ga4;s.src=`https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(ga4)}`;document.head.appendChild(s);
-    globalThis.gtag=globalThis.gtag||function(){globalThis.dataLayer.push(arguments)};
-    globalThis.gtag('js',new Date());globalThis.gtag('config',ga4,{send_page_view:false});
-  }
-}
-
-export function setConsent(state){
-  if(!['granted','denied'].includes(state))return false;
-  try{localStorage.setItem('ia_consent',state)}catch{}
-  if(state==='granted'){ensureAnalytics();track('consent_granted',{consent_state:'granted'})}
-  return true;
-}
-
-export function track(event,params={}){
-  if(consent()!=='granted')return false;
-  if(event==='lifecycle_transition'&&params.from&&params.to){
-    const from=LIFECYCLE.indexOf(params.from),to=LIFECYCLE.indexOf(params.to);
-    if(from<0||to<0||to<=from)return false;
-  }
-  ensureAnalytics();
-  globalThis.dataLayer=globalThis.dataLayer||[];
-  globalThis.dataLayer.push({event,event_id:id(),...params});
-  return true;
-}
+const TOUCH=['utm_source','utm_medium','utm_campaign','utm_term','utm_content','gclid','msclkid'];
+const safeRead=(k,f=null)=>{try{const v=localStorage.getItem(k);return v?JSON.parse(v):f}catch{return f}};
+const safeWrite=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch{}};
+const uuid=()=>globalThis.crypto?.randomUUID?.()||`evt_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+const now=()=>new Date().toISOString();
+const anon=()=>{let v=safeRead('ia_anon_id');if(!v){v=uuid();safeWrite('ia_anon_id',v)}return v};
+const session=()=>{let v=sessionStorage.getItem('ia_session_id');if(!v){v=uuid();sessionStorage.setItem('ia_session_id',v)}return v};
+export const getConsent=()=>safeRead('ia_consent',{analytics:'unset',marketing:'unset',personalization:'unset',policy_version:'staging-v1'});
+export const setConsent=(next)=>{const value={...getConsent(),...next,updated_at:now()};safeWrite('ia_consent',value);if(value.analytics==='granted')track('consent_updated',{analytics_state:value.analytics,marketing_state:value.marketing,personalization_state:value.personalization});return value};
+export function persistAttribution(){const q=new URLSearchParams(location.search);const hit={};TOUCH.forEach(k=>{const v=q.get(k);if(v)hit[k]=v});hit.landing_page=location.pathname;hit.referrer_domain=document.referrer?new URL(document.referrer).hostname:'';hit.touch_timestamp=now();const first=safeRead('ia_first_touch');if(!first&&Object.keys(hit).some(k=>TOUCH.includes(k))){safeWrite('ia_first_touch',{...hit,first_touch_timestamp:hit.touch_timestamp})}if(Object.keys(hit).some(k=>TOUCH.includes(k))){safeWrite('ia_current_touch',{...hit,latest_touch_timestamp:hit.touch_timestamp})}return getAttribution()}
+export const getAttribution=()=>({first_touch:safeRead('ia_first_touch',{}),current_touch:safeRead('ia_current_touch',{})});
+function ensureTags(){const c=getConsent();if(c.analytics!=='granted')return;globalThis.dataLayer=globalThis.dataLayer||[];const gtm=import.meta.env.VITE_GTM_ID,ga4=import.meta.env.VITE_GA4_ID;if(gtm&&!document.querySelector(`[data-ia-gtm="${gtm}"]`)){const s=document.createElement('script');s.async=true;s.dataset.iaGtm=gtm;s.src=`https://www.googletagmanager.com/gtm.js?id=${encodeURIComponent(gtm)}`;document.head.appendChild(s)}if(ga4&&!document.querySelector(`[data-ia-ga4="${ga4}"]`)){const s=document.createElement('script');s.async=true;s.dataset.iaGa4=ga4;s.src=`https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(ga4)}`;document.head.appendChild(s);globalThis.gtag=globalThis.gtag||function(){globalThis.dataLayer.push(arguments)};globalThis.gtag('js',new Date());globalThis.gtag('config',ga4,{send_page_view:false})}}
+export function track(event_name,params={}){const c=getConsent();if(c.analytics!=='granted'&&!event_name.startsWith('consent_'))return false;ensureTags();const a=getAttribution();const payload={event:event_name,event_name,event_id:uuid(),event_version:'1.0',event_timestamp:now(),page_location:location.href,route:location.pathname,consent_state:c.analytics,first_utm_source:a.first_touch.utm_source||'',first_utm_medium:a.first_touch.utm_medium||'',first_utm_campaign:a.first_touch.utm_campaign||'',first_utm_term:a.first_touch.utm_term||'',first_utm_content:a.first_touch.utm_content||'',current_utm_source:a.current_touch.utm_source||'',current_utm_medium:a.current_touch.utm_medium||'',current_utm_campaign:a.current_touch.utm_campaign||'',current_utm_term:a.current_touch.utm_term||'',current_utm_content:a.current_touch.utm_content||'',session_reference:session(),anonymous_visitor_reference:anon(),conversion_acknowledgement:params.conversion_acknowledgement||'none',crm_handoff_status:params.crm_handoff_status||'not_eligible',source_system:'intentamplify_web',...params};delete payload.email;delete payload.name;delete payload.phone;globalThis.dataLayer=globalThis.dataLayer||[];globalThis.dataLayer.push(payload);return payload}
+export const acknowledgeConversion=(form_id)=>{const v={form_id,acknowledged_at:now(),status:'accepted'};safeWrite('ia_conversion_ack',v);return v};
