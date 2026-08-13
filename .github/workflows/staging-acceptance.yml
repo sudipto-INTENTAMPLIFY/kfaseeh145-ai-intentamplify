@@ -5,7 +5,7 @@ on:
       preview_url:
         description: Vercel preview URL
         required: false
-        default: https://kfaseeh145-ai-intentamplify-ozn4pps0x.vercel.app
+        default: https://kfaseeh145-ai-intent-git-6c0d4d-sudipto-intentamplifys-projects.vercel.app
   push:
     branches: [agent/intent-amplify-staging]
 permissions:
@@ -23,5 +23,5 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - name: Run rendered desktop/mobile acceptance
         env:
-          PREVIEW_URL: ${{ github.event.inputs.preview_url || 'https://kfaseeh145-ai-intentamplify-ozn4pps0x.vercel.app' }}
+          PREVIEW_URL: ${{ github.event.inputs.preview_url || 'https://kfaseeh145-ai-intent-git-6c0d4d-sudipto-intentamplifys-projects.vercel.app' }}
         run: npm run test:staging
