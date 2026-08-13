@@ -1,0 +1,100 @@
+name: Intent Amplify Release Readiness
+
+on:
+  push:
+    branches:
+      - agent/intent-amplify-staging
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  code-readiness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout canonical staging source
+        uses: actions/checkout@v4
+
+      - name: Guard canonical branch
+        shell: bash
+        run: |
+          test "${GITHUB_REF_NAME}" = "agent/intent-amplify-staging" || {
+            echo "Refusing release-readiness execution from ${GITHUB_REF_NAME}" >&2
+            exit 1
+          }
+
+      - name: Set up Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Install dependencies
+        run: npm install --package-lock=false
+
+      - name: Build production bundle
+        run: npm run build
+
+      - name: Install Chromium for rendered acceptance
+        run: npx playwright install --with-deps chromium
+
+      - name: Start local production preview
+        shell: bash
+        run: |
+          nohup npm run preview -- --host 127.0.0.1 --port 4173 > /tmp/ia-preview.log 2>&1 &
+          echo $! > /tmp/ia-preview.pid
+          for i in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:4173/ >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/ia-preview.log
+          exit 1
+
+      - name: Run rendered desktop/mobile acceptance against exact built SHA
+        env:
+          PREVIEW_URL: http://127.0.0.1:4173
+        run: npm run test:staging
+
+      - name: Create immutable release artifact and manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release
+          ARTIFACT="intentamplify-release-${GITHUB_SHA}.tar.gz"
+          tar -czf "release/${ARTIFACT}" dist package.json vercel.json src api public 2>/dev/null || \
+            tar -czf "release/${ARTIFACT}" dist package.json vercel.json src api 2>/dev/null || \
+            tar -czf "release/${ARTIFACT}" dist package.json vercel.json src
+          SHA256="$(sha256sum "release/${ARTIFACT}" | awk '{print $1}')"
+          cat > release/manifest.json <<EOF
+          {
+            "repository": "${GITHUB_REPOSITORY}",
+            "branch": "${GITHUB_REF_NAME}",
+            "commit_sha": "${GITHUB_SHA}",
+            "run_id": "${GITHUB_RUN_ID}",
+            "artifact": "${ARTIFACT}",
+            "sha256": "${SHA256}",
+            "production_authorized": false,
+            "generated_at_utc": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          }
+          EOF
+          echo "${SHA256}  ${ARTIFACT}" > release/SHA256SUMS
+          {
+            echo "## Intent Amplify code-readiness evidence"
+            echo "- Branch: \`${GITHUB_REF_NAME}\`"
+            echo "- SHA: \`${GITHUB_SHA}\`"
+            echo "- Artifact: \`${ARTIFACT}\`"
+            echo "- SHA-256: \`${SHA256}\`"
+            echo "- Runtime target tested: local production Vite bundle from the exact SHA"
+            echo "- Production deployment: NOT AUTHORIZED"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload immutable release package
+        uses: actions/upload-artifact@v4
+        with:
+          name: intentamplify-release-${{ github.sha }}
+          path: release/
+          if-no-files-found: error
+          retention-days: 30
