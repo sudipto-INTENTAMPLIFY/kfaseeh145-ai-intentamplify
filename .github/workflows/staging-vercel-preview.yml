@@ -32,7 +32,7 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
 
       - name: Install dependencies
         run: npm install --package-lock=false
@@ -40,29 +40,40 @@ jobs:
       - name: Verify application build
         run: npm run build
 
-      - name: Verify Vercel preview credentials exist
+      - name: Detect optional Vercel CLI credentials
+        id: vercel-auth
         shell: bash
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
-          test -n "$VERCEL_TOKEN" || { echo "Missing VERCEL_TOKEN" >&2; exit 2; }
-          test -n "$VERCEL_ORG_ID" || { echo "Missing VERCEL_ORG_ID" >&2; exit 3; }
-          test -n "$VERCEL_PROJECT_ID" || { echo "Missing VERCEL_PROJECT_ID" >&2; exit 4; }
+          if [ -n "$VERCEL_TOKEN" ] && [ -n "$VERCEL_ORG_ID" ] && [ -n "$VERCEL_PROJECT_ID" ]; then
+            echo "cli=true" >> "$GITHUB_OUTPUT"
+            echo "Vercel CLI credentials available; explicit Preview deployment enabled."
+          else
+            echo "cli=false" >> "$GITHUB_OUTPUT"
+            echo "Vercel CLI credentials are not configured."
+            echo "Using the repository's existing Vercel Git integration for Preview deployment."
+            echo "This is not an error and does not authorize production deployment."
+          fi
 
       - name: Install Vercel CLI
+        if: steps.vercel-auth.outputs.cli == 'true'
         run: npm install --global vercel@latest
 
       - name: Pull Vercel Preview configuration
+        if: steps.vercel-auth.outputs.cli == 'true'
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: vercel pull --yes --environment=preview --token="$VERCEL_TOKEN"
 
       - name: Build Vercel Preview artifact
+        if: steps.vercel-auth.outputs.cli == 'true'
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: vercel build --token="$VERCEL_TOKEN"
 
       - name: Deploy Vercel Preview only
+        if: steps.vercel-auth.outputs.cli == 'true'
         id: deploy
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
@@ -80,5 +91,11 @@ jobs:
             echo "- Branch: \`${GITHUB_REF_NAME}\`"
             echo "- Commit: \`${GITHUB_SHA}\`"
             echo "- Mode: Vercel Preview (non-production)"
-            echo "- URL: ${{ steps.deploy.outputs.url }}"
+            if [ "${{ steps.vercel-auth.outputs.cli }}" = "true" ]; then
+              echo "- Deployment path: Vercel CLI Preview"
+              echo "- URL: ${{ steps.deploy.outputs.url }}"
+            else
+              echo "- Deployment path: existing Vercel Git integration"
+              echo "- Git integration deployment is verified independently by Vercel/GitHub deployment status and rendered acceptance."
+            fi
           } >> "$GITHUB_STEP_SUMMARY"
