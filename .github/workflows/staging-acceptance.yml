@@ -1,0 +1,28 @@
+name: Staging Preview Acceptance
+on:
+  workflow_dispatch:
+    inputs:
+      preview_url:
+        description: Vercel preview URL
+        required: false
+        default: https://kfaseeh145-ai-intentamplify-ozn4pps0x.vercel.app
+  push:
+    branches: [agent/intent-amplify-staging]
+permissions:
+  contents: read
+jobs:
+  rendered-acceptance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm install
+      - run: npx playwright install --with-deps chromium
+      - name: Run rendered desktop/mobile acceptance
+        env:
+          PREVIEW_URL: ${{ github.event.inputs.preview_url || 'https://kfaseeh145-ai-intentamplify-ozn4pps0x.vercel.app' }}
+        run: npm run test:staging
