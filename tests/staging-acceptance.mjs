@@ -9,7 +9,14 @@ async function visible(locator){ try { return await locator.isVisible({timeout:5
 
 async function runViewport(label, width, height) {
   const browser = await chromium.launch({headless:true});
-  const page = await browser.newPage({viewport:{width,height}});
+  const context = await browser.newContext({
+    viewport:{width,height},
+    extraHTTPHeaders: process.env.VERCEL_AUTOMATION_BYPASS_SECRET ? {
+      'x-vercel-protection-bypass': process.env.VERCEL_AUTOMATION_BYPASS_SECRET,
+      'x-vercel-set-bypass-cookie': 'true'
+    } : {}
+  });
+  const page = await context.newPage();
   const consoleErrors = [];
   const pageErrors = [];
   page.on('console', m => { if (m.type()==='error') consoleErrors.push(m.text()); });
