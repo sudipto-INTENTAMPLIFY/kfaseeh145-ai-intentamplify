@@ -3,9 +3,8 @@ on:
   workflow_dispatch:
     inputs:
       preview_url:
-        description: Vercel preview URL
-        required: false
-        default: https://kfaseeh145-ai-intent-git-6c0d4d-sudipto-intentamplifys-projects.vercel.app
+        description: Exact Vercel preview URL for this candidate
+        required: true
   push:
     branches: [agent/intent-amplify-staging]
 permissions:
@@ -13,16 +12,18 @@ permissions:
 jobs:
   rendered-acceptance:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 20
       - run: npm install --package-lock=false
+      - run: npm run build
       - run: npx playwright install --with-deps chromium
-      - name: Run rendered desktop/mobile acceptance
+      - name: Run exact-candidate staging governance acceptance
         env:
           PREVIEW_URL: ${{ github.event.inputs.preview_url || 'https://kfaseeh145-ai-intent-git-6c0d4d-sudipto-intentamplifys-projects.vercel.app' }}
+          EXPECTED_SHA: ${{ github.sha }}
           VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
         run: npm run test:staging
