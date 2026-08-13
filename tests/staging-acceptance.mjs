@@ -31,7 +31,9 @@ async function runViewport(label, width, height) {
     await primary.click();
     await page.waitForLoadState('networkidle');
     check(`${label}: primary CTA route`, new URL(page.url()).pathname==='/pricing/build-your-stack/', page.url());
-    check(`${label}: pricing comprehension`, await visible(page.getByRole('heading',{name:/Build the GTM Stack/i}).first()), 'Pricing/build stack heading visible');
+    const pricingH1 = page.locator('h1').filter({hasText:'Build the GTM Stack'}).first();
+    const pricingHeadingVisible = await visible(pricingH1);
+    check(`${label}: pricing comprehension`, pricingHeadingVisible, pricingHeadingVisible ? await pricingH1.innerText() : (await page.locator('body').innerText().catch(()=>'' )).slice(0,800));
     check(`${label}: canonical stacks`, await visible(page.getByText('Discover',{exact:true}).first()) && await visible(page.getByText('Activate',{exact:true}).first()) && await visible(page.getByText('Accelerate',{exact:true}).first()) && await visible(page.getByText('Enterprise',{exact:true}).first()), 'Discover / Activate / Accelerate / Enterprise visible');
   }
 
