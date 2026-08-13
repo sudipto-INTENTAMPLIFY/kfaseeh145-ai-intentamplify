@@ -1,0 +1,84 @@
+name: Staging Vercel Preview
+
+on:
+  push:
+    branches:
+      - agent/intent-amplify-staging
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+  VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+jobs:
+  deploy-preview:
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - name: Checkout approved staging branch
+        uses: actions/checkout@v4
+
+      - name: Guard against non-staging branch
+        shell: bash
+        run: |
+          test "${GITHUB_REF_NAME}" = "agent/intent-amplify-staging" || {
+            echo "Refusing deployment from ${GITHUB_REF_NAME}" >&2
+            exit 1
+          }
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm install --package-lock=false
+
+      - name: Verify application build
+        run: npm run build
+
+      - name: Verify Vercel preview credentials exist
+        shell: bash
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          test -n "$VERCEL_TOKEN" || { echo "Missing VERCEL_TOKEN" >&2; exit 2; }
+          test -n "$VERCEL_ORG_ID" || { echo "Missing VERCEL_ORG_ID" >&2; exit 3; }
+          test -n "$VERCEL_PROJECT_ID" || { echo "Missing VERCEL_PROJECT_ID" >&2; exit 4; }
+
+      - name: Install Vercel CLI
+        run: npm install --global vercel@latest
+
+      - name: Pull Vercel Preview configuration
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: vercel pull --yes --environment=preview --token="$VERCEL_TOKEN"
+
+      - name: Build Vercel Preview artifact
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: vercel build --token="$VERCEL_TOKEN"
+
+      - name: Deploy Vercel Preview only
+        id: deploy
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        shell: bash
+        run: |
+          URL="$(vercel deploy --prebuilt --token="$VERCEL_TOKEN")"
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+          echo "Preview URL: $URL"
+
+      - name: Record staging deployment summary
+        shell: bash
+        run: |
+          {
+            echo "## Intent Amplify staging deployment"
+            echo "- Branch: \`${GITHUB_REF_NAME}\`"
+            echo "- Commit: \`${GITHUB_SHA}\`"
+            echo "- Mode: Vercel Preview (non-production)"
+            echo "- URL: ${{ steps.deploy.outputs.url }}"
+          } >> "$GITHUB_STEP_SUMMARY"
