@@ -24,4 +24,5 @@ jobs:
       - name: Run rendered desktop/mobile acceptance
         env:
           PREVIEW_URL: ${{ github.event.inputs.preview_url || 'https://kfaseeh145-ai-intent-git-6c0d4d-sudipto-intentamplifys-projects.vercel.app' }}
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
         run: npm run test:staging
