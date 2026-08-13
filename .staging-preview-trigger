@@ -1,0 +1,4 @@
+Intent Amplify staging preview trigger.
+Branch: agent/intent-amplify-staging
+Purpose: trigger connected Vercel Git Preview deployment only.
+Production deployment is not authorized.
