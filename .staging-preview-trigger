@@ -1,4 +1,5 @@
 Intent Amplify staging preview trigger.
 Branch: agent/intent-amplify-staging
 Purpose: trigger connected Vercel Git Preview deployment only.
+Frozen canonical candidate: dc2e7a253bc85b0250847e01c11e393775a0c772
 Production deployment is not authorized.
