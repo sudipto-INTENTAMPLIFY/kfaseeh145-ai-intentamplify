@@ -17,7 +17,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
       - run: npm install --package-lock=false
       - run: npm run build
       - run: npx playwright install --with-deps chromium
@@ -25,5 +25,6 @@ jobs:
         env:
           PREVIEW_URL: ${{ github.event.inputs.preview_url || 'https://kfaseeh145-ai-intent-git-6c0d4d-sudipto-intentamplifys-projects.vercel.app' }}
           EXPECTED_SHA: ${{ github.sha }}
+          RUNTIME_MODE: staging
           VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
         run: npm run test:staging
