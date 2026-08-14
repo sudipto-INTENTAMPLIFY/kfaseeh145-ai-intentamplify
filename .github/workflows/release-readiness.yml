@@ -56,6 +56,7 @@ jobs:
       - name: Run rendered desktop/mobile acceptance against exact built SHA
         env:
           PREVIEW_URL: http://127.0.0.1:4173
+          RUNTIME_MODE: local
         run: npm run test:staging
 
       - name: Create immutable release artifact and manifest
@@ -88,6 +89,7 @@ jobs:
             echo "- Artifact: \`${ARTIFACT}\`"
             echo "- SHA-256: \`${SHA256}\`"
             echo "- Runtime target tested: local production Vite bundle from the exact SHA"
+            echo "- Platform headers/functions: verified separately by Staging Preview Acceptance"
             echo "- Production deployment: NOT AUTHORIZED"
           } >> "$GITHUB_STEP_SUMMARY"
 
