@@ -89,6 +89,19 @@ async function verifyNavigation(page,label) {
   check(`${label}: direct deep load`, await visible(page.getByRole('heading',{level:1,name:/Turn Fragmented Signals/i})), page.url());
 }
 
+async function verifyResourceExperience(page,label) {
+  await page.goto(new URL('/resources/',base).href,{waitUntil:'networkidle'});
+  check(`${label}: resource architecture`, await visible(page.getByText('BROWSE BY TYPE',{exact:true})) && await page.locator('.resourceTypeCard').count()===9, `${await page.locator('.resourceTypeCard').count()} mapped resource types`);
+  check(`${label}: research experience`, await visible(page.getByText('LATEST / HIGH-VALUE RESEARCH',{exact:true})) && await page.locator('.resourceCard').count()>=6, `${await page.locator('.resourceCard').count()} verified resource cards rendered`);
+  check(`${label}: event experience`, await visible(page.getByText('EVENTS / WEBINARS',{exact:true})) && await visible(page.getByText('UPCOMING EVENTS — CONTENT DEPENDENCY',{exact:true})), 'verified webinar plus explicit upcoming-event dependency');
+  check(`${label}: content discovery`, await visible(page.getByText('DISCOVER VERIFIED CONTENT',{exact:true})) && await page.locator('.resourceFilterGroup').count()===4, `${await page.locator('.resourceFilterGroup').count()} discovery dimensions`);
+  check(`${label}: ABM progression`, await visible(page.getByText('ABM CONTENT STACK',{exact:true})) && await page.locator('.resourceABMStack article').count()===5, `${await page.locator('.resourceABMStack article').count()} progression stages`);
+  check(`${label}: conversion journey`, await visible(page.getByText('BUYER INTELLIGENCE + PIPELINE ACTIVATION',{exact:true})) && await visible(page.getByRole('button',{name:'Book a Demo'}).last()), 'capability and demo progression available');
+  const text = await page.locator('.resourceExperience').innerText();
+  check(`${label}: no auto-SQL claim`, /content engagement never auto-creates SQL/i.test(text) && /not automatic qualification/i.test(text), 'explicit qualification guardrails');
+  check(`${label}: resource responsive overflow`, !(await page.evaluate(()=>document.documentElement.scrollWidth > document.documentElement.clientWidth + 2)), `scroll=${await page.evaluate(()=>document.documentElement.scrollWidth)}`);
+}
+
 async function verifyPage(page,label) {
   await page.goto(base,{waitUntil:'networkidle',timeout:30000});
   check(`${label}: H1`, await visible(page.getByRole('heading',{level:1}).first()), await page.getByRole('heading',{level:1}).first().innerText().catch(()=>''));
@@ -106,6 +119,8 @@ async function verifyPage(page,label) {
   check(`${label}: form validation`, await page.locator('form input[required]').count()>=8, `${await page.locator('form input[required]').count()} required controls`);
   await page.locator('form button').last().click();
   check(`${label}: required validation fires`, await page.locator('input:invalid').count()>0, `${await page.locator('input:invalid').count()} invalid fields`);
+
+  await verifyResourceExperience(page,label);
 
   await page.goto(new URL('/definitely-not-a-real-route/',base).href,{waitUntil:'networkidle'});
   check(`${label}: 404 handling`, /Page not found|404/i.test(await page.locator('body').innerText()), 'not-found UI');
